@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: anomalyze-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DEV_MODE=True
+      - SECRET_KEY=super-secret-production-key-change-me
+      - DATABASE_URL=sqlite:///./data/anomalyze.db
+    volumes:
+      - ./backend_data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: anomalyze-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
