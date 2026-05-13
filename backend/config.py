@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     EMAIL_SMTP_PORT: int = int(os.getenv("EMAIL_SMTP_PORT", "587"))
     EMAIL_SENDER: str = os.getenv("EMAIL_SENDER", "")
     EMAIL_PASSWORD: str = os.getenv("EMAIL_PASSWORD", "")
+    ALERT_RECIPIENT_EMAIL: str = os.getenv("ALERT_RECIPIENT_EMAIL", "")
 
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")

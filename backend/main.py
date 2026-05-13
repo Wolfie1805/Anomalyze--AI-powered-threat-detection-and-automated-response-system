@@ -1,5 +1,9 @@
 import asyncio
 from contextlib import asynccontextmanager
+
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -19,6 +23,8 @@ from backend.routers.chat import chat_router
 from backend.scheduler import start_scheduler
 from backend.modules.log_collector import dev_mode_log_generator
 from backend.modules.ml_engine import ml_engine
+from backend.routers.contact import router as contact_router
+# ...inside your app setup where you include other routers:
 
 Base.metadata.create_all(bind=engine)
 
@@ -52,6 +58,7 @@ async def lifespan(app: FastAPI):
         task.cancel()
 
 app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION, lifespan=lifespan)
+app.include_router(contact_router)
 
 app.add_middleware(
     CORSMiddleware,

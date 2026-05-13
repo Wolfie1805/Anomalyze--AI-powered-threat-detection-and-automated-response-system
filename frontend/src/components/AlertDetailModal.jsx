@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import api from '../api';
-import { FiX, FiAlertTriangle, FiCheck, FiTrash2 } from 'react-icons/fi';
+import { FiX, FiAlertTriangle, FiCheck, FiTrash2, FiXCircle, FiUnlock } from 'react-icons/fi';
 
 const SEVERITY = {
   HIGH:     { color: '#ff1744', bg: 'rgba(255,23,68,0.1)',   border: 'rgba(255,23,68,0.3)'   },
@@ -11,18 +11,18 @@ const SEVERITY = {
 };
 
 const MITRE = {
-  ROOT_LOGIN_ATTEMPT:        { id: 'T1078', name: 'Valid Accounts',                  tactic: 'Initial Access'       },
-  SSH_BRUTE_FORCE:           { id: 'T1110', name: 'Brute Force',                     tactic: 'Credential Access'    },
-  BRUTE_FORCE_DETECTED:      { id: 'T1110', name: 'Brute Force',                     tactic: 'Credential Access'    },
-  SQL_INJECTION_OR_CMD_EXEC: { id: 'T1190', name: 'Exploit Public-Facing App',       tactic: 'Initial Access'       },
-  XSS_ATTACK:                { id: 'T1059', name: 'Command & Scripting Interpreter', tactic: 'Execution'            },
-  PATH_TRAVERSAL:            { id: 'T1083', name: 'File & Directory Discovery',      tactic: 'Discovery'            },
-  SCANNER_DETECTED:          { id: 'T1595', name: 'Active Scanning',                 tactic: 'Reconnaissance'       },
-  DOS_ATTACK_DETECTED:       { id: 'T1498', name: 'Network DoS',                     tactic: 'Impact'               },
-  SUSPICIOUS_USER_AGENT:     { id: 'T1589', name: 'Gather Victim Identity Info',     tactic: 'Reconnaissance'       },
-  ML_ANOMALY_DETECTED:       { id: 'T1071', name: 'App Layer Protocol Anomaly',      tactic: 'Command & Control'    },
-  ADMIN_PANEL_ACCESS:        { id: 'T1078', name: 'Valid Accounts',                  tactic: 'Privilege Escalation' },
-  UNAUTHORIZED_ACCESS_ATTEMPT:{ id: 'T1110', name: 'Brute Force',                   tactic: 'Credential Access'    },
+  ROOT_LOGIN_ATTEMPT:          { id: 'T1078', name: 'Valid Accounts',                  tactic: 'Initial Access'       },
+  SSH_BRUTE_FORCE:             { id: 'T1110', name: 'Brute Force',                     tactic: 'Credential Access'    },
+  BRUTE_FORCE_DETECTED:        { id: 'T1110', name: 'Brute Force',                     tactic: 'Credential Access'    },
+  SQL_INJECTION_OR_CMD_EXEC:   { id: 'T1190', name: 'Exploit Public-Facing App',       tactic: 'Initial Access'       },
+  XSS_ATTACK:                  { id: 'T1059', name: 'Command & Scripting Interpreter', tactic: 'Execution'            },
+  PATH_TRAVERSAL:              { id: 'T1083', name: 'File & Directory Discovery',      tactic: 'Discovery'            },
+  SCANNER_DETECTED:            { id: 'T1595', name: 'Active Scanning',                 tactic: 'Reconnaissance'       },
+  DOS_ATTACK_DETECTED:         { id: 'T1498', name: 'Network DoS',                     tactic: 'Impact'               },
+  SUSPICIOUS_USER_AGENT:       { id: 'T1589', name: 'Gather Victim Identity Info',     tactic: 'Reconnaissance'       },
+  ML_ANOMALY_DETECTED:         { id: 'T1071', name: 'App Layer Protocol Anomaly',      tactic: 'Command & Control'    },
+  ADMIN_PANEL_ACCESS:          { id: 'T1078', name: 'Valid Accounts',                  tactic: 'Privilege Escalation' },
+  UNAUTHORIZED_ACCESS_ATTEMPT: { id: 'T1110', name: 'Brute Force',                    tactic: 'Credential Access'    },
 };
 
 const InfoRow = ({ label, value, valueColor }) => (
@@ -48,11 +48,19 @@ const InfoRow = ({ label, value, valueColor }) => (
   </div>
 );
 
-const AlertDetailModal = ({ alertId, onClose, onResolve, onDelete }) => {
-  const [alert, setAlert] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [resolving, setResolving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+const AlertDetailModal = ({ alertId, onClose, onResolve, onDelete, isAdmin, onFalsePositive, onUnblockIP }) => {
+  const [alert, setAlert]           = useState(null);
+  const [loading, setLoading]       = useState(true);
+  const [resolving, setResolving]   = useState(false);
+  const [deleting, setDeleting]     = useState(false);
+  const [markingFP, setMarkingFP]   = useState(false);
+  const [unblocking, setUnblocking] = useState(false);
+  const [toast, setToast]           = useState(null);
+
+  const showToast = (msg, color = '#39ff14') => {
+    setToast({ msg, color });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     const fetchAlert = async () => {
@@ -69,7 +77,6 @@ const AlertDetailModal = ({ alertId, onClose, onResolve, onDelete }) => {
   }, [alertId]);
 
   useEffect(() => {
-    // Prevent body scroll when modal is open
     document.body.style.overflow = 'hidden';
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handler);
@@ -93,6 +100,13 @@ const AlertDetailModal = ({ alertId, onClose, onResolve, onDelete }) => {
   };
 
   const handleDelete = async () => {
+    const confirmed = window.confirm(
+      '⚠ Delete this alert record?\n\n' +
+      'This removes the alert from the database only.\n' +
+      'The IP address will remain blocked.\n\n' +
+      'To unblock the IP, use "Mark False Positive" instead.'
+    );
+    if (!confirmed) return;
     setDeleting(true);
     try {
       await api.delete(`/alerts/${alertId}`);
@@ -105,10 +119,47 @@ const AlertDetailModal = ({ alertId, onClose, onResolve, onDelete }) => {
     }
   };
 
-  const sev = alert ? (SEVERITY[alert.severity] || SEVERITY.LOW) : SEVERITY.LOW;
-  const mitre = alert ? (MITRE[alert.rule_name] || null) : null;
+  const handleFalsePositive = async () => {
+    setMarkingFP(true);
+    try {
+      const res = await api.post(`/alerts/${alertId}/false-positive`);
+      const unblocked = res.data?.unblock_result?.ip;
+      showToast(
+        unblocked
+          ? `Marked as false positive · IP ${unblocked} unblocked`
+          : 'Marked as false positive'
+      );
+      const updated = await api.get(`/alerts/${alertId}`);
+      setAlert(updated.data);
+      onFalsePositive && onFalsePositive(alertId);
+    } catch (err) {
+      showToast(err.response?.data?.detail || 'Failed to mark as false positive', '#ff1744');
+    } finally {
+      setMarkingFP(false);
+    }
+  };
 
-  // Use portal to render outside of any stacking context
+  const handleUnblock = async () => {
+    setUnblocking(true);
+    try {
+      await api.post(`/alerts/${alertId}/unblock-ip`);
+      showToast(`IP ${alert.source_ip} unblocked successfully`);
+      const updated = await api.get(`/alerts/${alertId}`);
+      setAlert(updated.data);
+      onUnblockIP && onUnblockIP(alertId, alert.source_ip);
+    } catch (err) {
+      showToast(err.response?.data?.detail || 'Failed to unblock IP', '#ff1744');
+    } finally {
+      setUnblocking(false);
+    }
+  };
+
+  const sev      = alert ? (SEVERITY[alert.severity] || SEVERITY.LOW) : SEVERITY.LOW;
+  const mitre    = alert ? (MITRE[alert.rule_name] || null) : null;
+  const hasIP    = !!(alert?.source_ip);
+  const isFP     = alert?.status === 'FALSE_POSITIVE';
+  const isResolved = alert?.status === 'RESOLVED';
+
   return ReactDOM.createPortal(
     <>
       {/* Backdrop */}
@@ -139,6 +190,23 @@ const AlertDetailModal = ({ alertId, onClose, onResolve, onDelete }) => {
         animation: 'modalIn 0.25s cubic-bezier(0.16,1,0.3,1)',
         boxShadow: `0 0 60px ${sev.color}20, 0 0 120px rgba(0,0,0,0.95)`,
       }}>
+
+        {/* Inline toast */}
+        {toast && (
+          <div style={{
+            position: 'absolute', top: 12, left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(10,10,15,0.97)',
+            border: `1px solid ${toast.color}40`,
+            borderRadius: 6, padding: '8px 16px',
+            fontFamily: 'JetBrains Mono', fontSize: 11,
+            color: toast.color,
+            zIndex: 100000, whiteSpace: 'nowrap',
+            animation: 'fadeIn 0.2s ease',
+          }}>
+            {toast.msg}
+          </div>
+        )}
 
         {/* Header */}
         <div style={{
@@ -228,6 +296,21 @@ const AlertDetailModal = ({ alertId, onClose, onResolve, onDelete }) => {
             </div>
           ) : (
             <>
+              {/* False positive banner */}
+              {isFP && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  background: 'rgba(124,77,255,0.08)',
+                  border: '1px solid rgba(124,77,255,0.25)',
+                  borderRadius: 8, padding: '10px 14px', marginBottom: 16,
+                }}>
+                  <FiXCircle size={14} color="#7c4dff" />
+                  <span style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color: '#7c4dff', letterSpacing: '0.06em' }}>
+                    Marked as false positive — IP has been unblocked
+                  </span>
+                </div>
+              )}
+
               {/* Alert metadata */}
               <div style={{ marginBottom: 20 }}>
                 <div style={{
@@ -242,11 +325,11 @@ const AlertDetailModal = ({ alertId, onClose, onResolve, onDelete }) => {
                   border: '1px solid rgba(255,255,255,0.05)',
                   borderRadius: 8, padding: '4px 14px',
                 }}>
-                  <InfoRow label="Alert ID" value={`#${alert.id}`} valueColor="#00f5ff" />
+                  <InfoRow label="Alert ID"         value={`#${alert.id}`}                  valueColor="#00f5ff" />
                   <InfoRow label="Detection Method" value={alert.detection_method || 'RULE'} valueColor={alert.detection_method === 'ML' ? '#7c4dff' : '#00f5ff'} />
-                  <InfoRow label="Source IP" value={alert.source_ip} valueColor="#ff6b81" />
-                  <InfoRow label="Status" value={alert.status} valueColor={alert.status === 'RESOLVED' ? '#39ff14' : '#ffab40'} />
-                  <InfoRow label="Timestamp" value={alert.timestamp ? new Date(alert.timestamp).toLocaleString() : '—'} />
+                  <InfoRow label="Source IP"        value={alert.source_ip}                  valueColor="#ff6b81" />
+                  <InfoRow label="Status"           value={alert.status}                     valueColor={isResolved ? '#39ff14' : isFP ? '#7c4dff' : '#ffab40'} />
+                  <InfoRow label="Timestamp"        value={alert.timestamp ? new Date(alert.timestamp).toLocaleString() : '—'} />
                   {alert.anomaly_score > 0 && (
                     <InfoRow
                       label="ML Anomaly Score"
@@ -272,6 +355,7 @@ const AlertDetailModal = ({ alertId, onClose, onResolve, onDelete }) => {
                   borderRadius: 8, padding: '12px 14px',
                   fontFamily: 'JetBrains Mono, monospace',
                   fontSize: 12, color: '#94a3b8', lineHeight: 1.7,
+                  whiteSpace: 'pre-wrap',
                 }}>
                   {alert.description || 'No description available.'}
                 </div>
@@ -404,8 +488,8 @@ const AlertDetailModal = ({ alertId, onClose, onResolve, onDelete }) => {
                     alert.severity === 'HIGH' || alert.severity === 'CRITICAL'
                       ? 'HIGH severity — IP should be blocked immediately if not already done'
                       : 'MEDIUM/LOW severity — monitor for repeated occurrences before blocking',
-                    'If this is a false positive (e.g. internal scanner) — click Delete',
-                    'If the threat was real and handled — click Resolve to mark it closed',
+                    'If this is a false positive (e.g. internal scanner) — click "Mark False Positive" below to unblock the IP and record the decision with your name and timestamp',
+                    'If the threat was real and handled — click "Resolve" to mark it closed',
                   ].map((tip, i) => (
                     <div key={i} style={{
                       display: 'flex', gap: 8, marginBottom: 6,
@@ -422,49 +506,83 @@ const AlertDetailModal = ({ alertId, onClose, onResolve, onDelete }) => {
           )}
         </div>
 
-        {/* Footer */}
-        {!loading && alert?.status !== 'RESOLVED' && (
+        {/* Footer — active alert */}
+        {!loading && !isResolved && !isFP && (
           <div style={{
             padding: '16px 24px',
             borderTop: '1px solid rgba(255,255,255,0.06)',
-            display: 'flex', gap: 10, justifyContent: 'flex-end',
+            display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap',
             flexShrink: 0, background: 'rgba(255,255,255,0.01)',
           }}>
-            <button onClick={handleDelete} disabled={deleting} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: 'rgba(255,23,68,0.08)', border: '1px solid rgba(255,23,68,0.25)',
-              color: '#ff1744', padding: '8px 16px', borderRadius: 6,
-              fontSize: 11, cursor: 'pointer', fontFamily: 'JetBrains Mono',
-              letterSpacing: '0.08em',
-            }}>
-              <FiTrash2 size={12} />
-              {deleting ? 'DELETING...' : 'DELETE — FALSE POSITIVE'}
-            </button>
-            <button onClick={handleResolve} disabled={resolving} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: 'rgba(57,255,20,0.08)', border: '1px solid rgba(57,255,20,0.25)',
-              color: '#39ff14', padding: '8px 16px', borderRadius: 6,
-              fontSize: 11, cursor: 'pointer', fontFamily: 'JetBrains Mono',
-              letterSpacing: '0.08em',
-            }}>
+            {hasIP && (
+              <button onClick={handleUnblock} disabled={unblocking} style={footerBtn('#00e5ff')}>
+                <FiUnlock size={12} />
+                {unblocking ? 'UNBLOCKING...' : `UNBLOCK IP · ${alert.source_ip}`}
+              </button>
+            )}
+            {hasIP && (
+              <button onClick={handleFalsePositive} disabled={markingFP} style={footerBtn('#7c4dff')}>
+                <FiXCircle size={12} />
+                {markingFP ? 'MARKING...' : 'MARK FALSE POSITIVE'}
+              </button>
+            )}
+            <button onClick={handleResolve} disabled={resolving} style={footerBtn('#39ff14')}>
               <FiCheck size={12} />
               {resolving ? 'RESOLVING...' : 'RESOLVE — THREAT HANDLED'}
             </button>
+            {isAdmin && (
+              <button onClick={handleDelete} disabled={deleting} style={footerBtn('#ff1744')}>
+                <FiTrash2 size={12} />
+                {deleting ? 'DELETING...' : 'DELETE RECORD'}
+              </button>
+            )}
           </div>
         )}
 
-        {!loading && alert?.status === 'RESOLVED' && (
+        {/* Footer — resolved */}
+        {!loading && isResolved && (
           <div style={{
             padding: '14px 24px',
             borderTop: '1px solid rgba(255,255,255,0.06)',
-            display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            flexShrink: 0,
           }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#39ff14', boxShadow: '0 0 6px #39ff14' }} />
-            <span style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color: '#39ff14', letterSpacing: '0.08em' }}>
-              RESOLVED — This alert has been marked as handled
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#39ff14', boxShadow: '0 0 6px #39ff14' }} />
+              <span style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color: '#39ff14', letterSpacing: '0.08em' }}>
+                RESOLVED — This alert has been marked as handled
+              </span>
+            </div>
+            {isAdmin && (
+              <button onClick={handleDelete} disabled={deleting} style={{ ...footerBtn('#ff1744'), fontSize: 10 }}>
+                <FiTrash2 size={11} /> {deleting ? 'DELETING...' : 'DELETE RECORD'}
+              </button>
+            )}
           </div>
         )}
+
+        {/* Footer — false positive */}
+        {!loading && isFP && (
+          <div style={{
+            padding: '14px 24px',
+            borderTop: '1px solid rgba(255,255,255,0.06)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#7c4dff', boxShadow: '0 0 6px #7c4dff' }} />
+              <span style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color: '#7c4dff', letterSpacing: '0.08em' }}>
+                FALSE POSITIVE — IP unblocked and audit trail recorded
+              </span>
+            </div>
+            {isAdmin && (
+              <button onClick={handleDelete} disabled={deleting} style={{ ...footerBtn('#ff1744'), fontSize: 10 }}>
+                <FiTrash2 size={11} /> {deleting ? 'DELETING...' : 'DELETE RECORD'}
+              </button>
+            )}
+          </div>
+        )}
+
       </div>
 
       <style>{`
@@ -479,5 +597,15 @@ const AlertDetailModal = ({ alertId, onClose, onResolve, onDelete }) => {
     document.body
   );
 };
+
+const footerBtn = (color) => ({
+  display: 'flex', alignItems: 'center', gap: 6,
+  background: `${color}08`,
+  border: `1px solid ${color}25`,
+  color: color, padding: '8px 14px', borderRadius: 6,
+  fontSize: 11, cursor: 'pointer',
+  fontFamily: 'JetBrains Mono', letterSpacing: '0.08em',
+  transition: 'all 0.2s',
+});
 
 export default AlertDetailModal;

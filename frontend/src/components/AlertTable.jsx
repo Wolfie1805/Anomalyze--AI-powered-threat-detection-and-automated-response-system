@@ -63,21 +63,22 @@ const FILTERS = ['ALL', 'NEW', 'RESOLVED', 'FALSE_POSITIVE'];
 const AlertTable = ({ alerts, refreshData, isAdmin, onFalsePositive, onUnblockIP }) => {
   const { user } = useContext(AuthContext);
   const role = user?.role;
-  const [filter, setFilter] = useState('ALL');
-  const [deletingId, setDeletingId] = useState(null);
-  const [resolvingId, setResolvingId] = useState(null);
-  const [fpId, setFpId] = useState(null);
+
+  const [filter, setFilter]             = useState('ALL');
+  const [deletingId, setDeletingId]     = useState(null);
+  const [resolvingId, setResolvingId]   = useState(null);
+  const [fpId, setFpId]                 = useState(null);
   const [unblockingId, setUnblockingId] = useState(null);
-  const [hoveredRow, setHoveredRow] = useState(null);
+  const [hoveredRow, setHoveredRow]     = useState(null);
   const [selectedAlertId, setSelectedAlertId] = useState(null);
 
   const filtered = (alerts || []).filter(a =>
     filter === 'ALL' ? true : a.status === filter
   );
 
-  const newCount = (alerts || []).filter(a => a.status === 'NEW').length;
+  const newCount      = (alerts || []).filter(a => a.status === 'NEW').length;
   const resolvedCount = (alerts || []).filter(a => a.status === 'RESOLVED').length;
-  const fpCount = (alerts || []).filter(a => a.status === 'FALSE_POSITIVE').length;
+  const fpCount       = (alerts || []).filter(a => a.status === 'FALSE_POSITIVE').length;
 
   const handleResolve = async (id) => {
     setResolvingId(id);
@@ -91,7 +92,14 @@ const AlertTable = ({ alerts, refreshData, isAdmin, onFalsePositive, onUnblockIP
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id, ip) => {
+    const confirmed = window.confirm(
+      '⚠ Delete this alert record?\n\n' +
+      'This removes the alert from the database only.\n' +
+      (ip ? `The IP address (${ip}) will remain blocked.\n\n` : '\n') +
+      'To unblock the IP, use "False Pos" or "Unblock IP" instead.'
+    );
+    if (!confirmed) return;
     setDeletingId(id);
     try {
       await api.delete(`/alerts/${id}`);
@@ -176,11 +184,9 @@ const AlertTable = ({ alerts, refreshData, isAdmin, onFalsePositive, onUnblockIP
             animation: 'statusPulse 1.5s infinite', flexShrink: 0,
           }} />
           <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#ffab40', letterSpacing: '0.08em' }}>
-            {newCount} alert{newCount > 1 ? 's' : ''} require action —
-            {role === 'ADMIN'
-              ? <> click <strong style={{ color: '#39ff14' }}>Resolve</strong> when handled or <strong style={{ color: '#ff1744' }}>Delete</strong> to remove</>
-              : <> click <strong style={{ color: '#7c4dff' }}>False Pos</strong> to unblock IP or <strong style={{ color: '#39ff14' }}>Resolve</strong> to close</>
-            }
+            {newCount} alert{newCount > 1 ? 's' : ''} require action —{' '}
+            click <strong style={{ color: '#7c4dff' }}>False Pos</strong> to unblock IP ·{' '}
+            <strong style={{ color: '#39ff14' }}>Resolve</strong> if threat was real and handled
           </span>
         </div>
       )}
@@ -249,13 +255,14 @@ const AlertTable = ({ alerts, refreshData, isAdmin, onFalsePositive, onUnblockIP
             </thead>
             <tbody>
               {filtered.map((a, i) => {
-                const sev = SEVERITY[a.severity] || SEVERITY.LOW;
-                const isHovered = hoveredRow === a.id;
-                const isDeleting = deletingId === a.id;
+                const sev         = SEVERITY[a.severity] || SEVERITY.LOW;
+                const isHovered   = hoveredRow === a.id;
+                const isDeleting  = deletingId === a.id;
                 const isResolving = resolvingId === a.id;
-                const isResolved = a.status === 'RESOLVED';
-                const isFP = a.status === 'FALSE_POSITIVE';
-                const hasIP = !!(a.source_ip || a.ip_address);
+                const isResolved  = a.status === 'RESOLVED';
+                const isFP        = a.status === 'FALSE_POSITIVE';
+                const hasIP       = !!(a.source_ip || a.ip_address);
+                const ip          = a.source_ip || a.ip_address;
 
                 return (
                   <tr
@@ -290,7 +297,7 @@ const AlertTable = ({ alerts, refreshData, isAdmin, onFalsePositive, onUnblockIP
 
                     <td style={{ padding: '9px 12px', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                       <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: isHovered ? sev.color : '#64748b', transition: 'color 0.2s' }}>
-                        {a.source_ip || a.ip_address || '—'}
+                        {ip || '—'}
                       </span>
                     </td>
 
@@ -310,7 +317,6 @@ const AlertTable = ({ alerts, refreshData, isAdmin, onFalsePositive, onUnblockIP
                       <StatusBadge status={a.status} />
                     </td>
 
-                    {/* Actions — role based */}
                     <td style={{ padding: '9px 12px', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
 
@@ -319,10 +325,9 @@ const AlertTable = ({ alerts, refreshData, isAdmin, onFalsePositive, onUnblockIP
                           <FiEye size={10} /> View
                         </button>
 
-                        {/* ANALYST buttons */}
+                        {/* ANALYST actions */}
                         {role === 'ANALYST' && (
                           <>
-                            {/* Resolve — for new alerts */}
                             {!isResolved && !isFP && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleResolve(a.id); }}
@@ -332,8 +337,6 @@ const AlertTable = ({ alerts, refreshData, isAdmin, onFalsePositive, onUnblockIP
                                 <FiCheck size={10} /> {isResolving ? '...' : 'Resolve'}
                               </button>
                             )}
-
-                            {/* False Positive — marks alert + auto-unblocks IP */}
                             {!isFP && hasIP && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleFalsePositive(a.id); }}
@@ -344,13 +347,11 @@ const AlertTable = ({ alerts, refreshData, isAdmin, onFalsePositive, onUnblockIP
                                 <FiXCircle size={10} /> {fpId === a.id ? '...' : 'False Pos'}
                               </button>
                             )}
-
-                            {/* Unblock IP — manual unblock without marking false positive */}
                             {hasIP && !isFP && (
                               <button
-                                onClick={(e) => { e.stopPropagation(); handleUnblock(a.id, a.source_ip || a.ip_address); }}
+                                onClick={(e) => { e.stopPropagation(); handleUnblock(a.id, ip); }}
                                 disabled={unblockingId === a.id}
-                                title="Unblock this IP address"
+                                title="Unblock this IP without marking as false positive"
                                 style={{ ...actionBtn('#00e5ff'), opacity: unblockingId === a.id ? 0.5 : 1 }}
                               >
                                 <FiUnlock size={10} /> {unblockingId === a.id ? '...' : 'Unblock IP'}
@@ -359,7 +360,7 @@ const AlertTable = ({ alerts, refreshData, isAdmin, onFalsePositive, onUnblockIP
                           </>
                         )}
 
-                        {/* ADMIN buttons */}
+                        {/* ADMIN actions */}
                         {role === 'ADMIN' && (
                           <>
                             {!isResolved && !isFP && (
@@ -371,10 +372,30 @@ const AlertTable = ({ alerts, refreshData, isAdmin, onFalsePositive, onUnblockIP
                                 <FiCheck size={10} /> {isResolving ? '...' : 'Resolve'}
                               </button>
                             )}
-
+                            {!isFP && hasIP && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleFalsePositive(a.id); }}
+                                disabled={fpId === a.id}
+                                title="Mark as false positive and unblock IP"
+                                style={{ ...actionBtn('#7c4dff'), opacity: fpId === a.id ? 0.5 : 1 }}
+                              >
+                                <FiXCircle size={10} /> {fpId === a.id ? '...' : 'False Pos'}
+                              </button>
+                            )}
+                            {hasIP && !isFP && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleUnblock(a.id, ip); }}
+                                disabled={unblockingId === a.id}
+                                title="Unblock this IP without marking as false positive"
+                                style={{ ...actionBtn('#00e5ff'), opacity: unblockingId === a.id ? 0.5 : 1 }}
+                              >
+                                <FiUnlock size={10} /> {unblockingId === a.id ? '...' : 'Unblock IP'}
+                              </button>
+                            )}
                             <button
-                              onClick={(e) => { e.stopPropagation(); handleDelete(a.id); }}
+                              onClick={(e) => { e.stopPropagation(); handleDelete(a.id, ip); }}
                               disabled={isDeleting}
+                              title="Delete alert record only — IP stays blocked"
                               style={{ ...actionBtn('#ff1744'), opacity: isDeleting ? 0 : 1 }}
                             >
                               <FiTrash2 size={10} /> {isDeleting ? '...' : 'Delete'}
@@ -397,7 +418,10 @@ const AlertTable = ({ alerts, refreshData, isAdmin, onFalsePositive, onUnblockIP
           alertId={selectedAlertId}
           onClose={() => setSelectedAlertId(null)}
           onResolve={() => refreshData && refreshData()}
-          onDelete={() => refreshData && refreshData()}
+          onDelete={() => { refreshData && refreshData(); setSelectedAlertId(null); }}
+          isAdmin={isAdmin}
+          onFalsePositive={onFalsePositive}
+          onUnblockIP={onUnblockIP}
         />
       )}
 
