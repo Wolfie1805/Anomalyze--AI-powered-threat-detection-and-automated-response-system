@@ -2,9 +2,32 @@ import React, { useEffect, useState, useRef, useContext } from 'react';
 import api from '../api';
 import Navbar from '../components/Navbar';
 import AlertTable from '../components/AlertTable';
+import DataModeSwitch from '../components/DataModeSwitch';
 import { AuthContext } from '../context/AuthContext';
-import { FiAlertTriangle, FiDownload, FiRefreshCw, FiTrash2, FiShield, FiXCircle } from 'react-icons/fi';
+import { FiAlertTriangle, FiDownload, FiRefreshCw, FiTrash2 } from 'react-icons/fi';
 
+// ── Style helpers (outside component) ────────────────────────────────────────
+const btnStyle = (color) => ({
+  display: 'flex', alignItems: 'center', gap: 6,
+  background: `${color}10`,
+  border: `1px solid ${color}30`,
+  borderRadius: 6, padding: '8px 14px',
+  color: color, fontSize: 11,
+  fontFamily: 'JetBrains Mono', cursor: 'pointer',
+  letterSpacing: '0.08em', transition: 'all 0.2s',
+});
+
+const filterPill = (active, color) => ({
+  padding: '5px 12px', borderRadius: 4,
+  fontFamily: 'JetBrains Mono', fontSize: 9,
+  letterSpacing: '0.08em', cursor: 'pointer',
+  background: active ? `${color}15` : 'transparent',
+  border: active ? `1px solid ${color}50` : '1px solid rgba(255,255,255,0.06)',
+  color: active ? color : '#4a5568',
+  transition: 'all 0.2s',
+});
+
+// ── MatrixRain ────────────────────────────────────────────────────────────────
 const MatrixRain = () => {
   const canvasRef = useRef(null);
   useEffect(() => {
@@ -36,9 +59,15 @@ const MatrixRain = () => {
     window.addEventListener('resize', handleResize);
     return () => { clearInterval(interval); window.removeEventListener('resize', handleResize); };
   }, []);
-  return <canvas ref={canvasRef} style={{ position: 'fixed', top: 0, left: 0, zIndex: 0, opacity: 0.4, pointerEvents: 'none' }} />;
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ position: 'fixed', top: 0, left: 0, zIndex: 0, opacity: 0.4, pointerEvents: 'none' }}
+    />
+  );
 };
 
+// ── FloatingOrbs ──────────────────────────────────────────────────────────────
 const FloatingOrbs = () => (
   <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
     {[
@@ -64,6 +93,7 @@ const FloatingOrbs = () => (
   </div>
 );
 
+// ── Alerts Page ───────────────────────────────────────────────────────────────
 const Alerts = () => {
   const { user } = useContext(AuthContext);
   const isAdmin = user?.role === 'ADMIN';
@@ -144,17 +174,17 @@ const Alerts = () => {
     }
   };
 
-  const newCount = alerts.filter(a => a.status === 'NEW').length;
-  const highCount = alerts.filter(a => a.severity === 'HIGH' || a.severity === 'CRITICAL').length;
+  const newCount     = alerts.filter(a => a.status === 'NEW').length;
+  const highCount    = alerts.filter(a => a.severity === 'HIGH' || a.severity === 'CRITICAL').length;
   const resolvedCount = alerts.filter(a => a.status === 'RESOLVED').length;
-  const fpCount = alerts.filter(a => a.status === 'FALSE_POSITIVE').length;
+  const fpCount      = alerts.filter(a => a.status === 'FALSE_POSITIVE').length;
 
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a0f', position: 'relative' }}>
       <MatrixRain />
       <FloatingOrbs />
 
-      {/* Toast notification */}
+      {/* Toast */}
       {toast && (
         <div style={{
           position: 'fixed', top: 80, right: 24, zIndex: 9999,
@@ -175,11 +205,13 @@ const Alerts = () => {
 
         <div style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
 
-          {/* Page header */}
+          {/* ── Page header ── */}
           <div style={{
             display: 'flex', alignItems: 'flex-start',
             justifyContent: 'space-between', marginBottom: 24,
+            flexWrap: 'wrap', gap: 16,
           }}>
+            {/* Left: title */}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                 <FiAlertTriangle size={16} color="#ff1744"
@@ -192,41 +224,42 @@ const Alerts = () => {
                   ALERTS & THREATS
                 </h1>
               </div>
-              <p style={{ color: '#64748b', fontSize: 12, fontFamily: 'JetBrains Mono' }}>
+              <p style={{ color: '#64748b', fontSize: 12, fontFamily: 'JetBrains Mono', margin: 0 }}>
                 {alerts.length} total alerts · real-time threat log
                 {isAdmin && <span style={{ color: '#ff1744', marginLeft: 8 }}>· ADMIN MODE</span>}
               </p>
             </div>
 
-            {/* Action buttons */}
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <button onClick={() => fetchAlerts(true)} style={btnStyle('#00f5ff')}>
-                <FiRefreshCw size={12} style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }} />
-                REFRESH
-              </button>
-              <button onClick={exportCSV} style={btnStyle('#39ff14')}>
-                <FiDownload size={12} /> EXPORT CSV
-              </button>
-
-              {/* ADMIN ONLY — clear all */}
-              {isAdmin && (
-                <button onClick={clearAllAlerts} style={btnStyle('#ff1744')}>
-                  <FiTrash2 size={12} /> CLEAR ALL
+            {/* Right: actions + toggle */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <button onClick={() => fetchAlerts(true)} style={btnStyle('#00f5ff')}>
+                  <FiRefreshCw size={12} style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }} />
+                  REFRESH
                 </button>
-              )}
+                <button onClick={exportCSV} style={btnStyle('#39ff14')}>
+                  <FiDownload size={12} /> EXPORT CSV
+                </button>
+                {isAdmin && (
+                  <button onClick={clearAllAlerts} style={btnStyle('#ff1744')}>
+                    <FiTrash2 size={12} /> CLEAR ALL
+                  </button>
+                )}
+              </div>
+              {isAdmin && <DataModeSwitch />}
             </div>
           </div>
 
-          {/* Summary stat cards */}
+          {/* ── Stat cards ── */}
           <div style={{
             display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
             gap: 12, marginBottom: 20,
           }}>
             {[
-              { label: 'TOTAL ALERTS', value: alerts.length, color: '#00f5ff' },
-              { label: 'HIGH SEVERITY', value: highCount, color: '#ff1744' },
-              { label: 'UNRESOLVED', value: newCount, color: '#ffab40' },
-              { label: 'FALSE POSITIVES', value: fpCount, color: '#7c4dff' },
+              { label: 'TOTAL ALERTS',   value: alerts.length, color: '#00f5ff' },
+              { label: 'HIGH SEVERITY',  value: highCount,     color: '#ff1744' },
+              { label: 'UNRESOLVED',     value: newCount,      color: '#ffab40' },
+              { label: 'FALSE POSITIVES', value: fpCount,      color: '#7c4dff' },
             ].map((s, i) => (
               <div key={i} style={{
                 background: 'rgba(255,255,255,0.02)',
@@ -252,7 +285,7 @@ const Alerts = () => {
             ))}
           </div>
 
-          {/* Filters row */}
+          {/* ── Filters ── */}
           <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             <span style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: '#4a5568', letterSpacing: '0.1em' }}>
               FILTER:
@@ -260,11 +293,12 @@ const Alerts = () => {
             <div style={{ display: 'flex', gap: 6 }}>
               {[
                 { value: '', label: 'ALL SEV', color: '#00f5ff' },
-                { value: 'HIGH', label: 'HIGH', color: '#ff1744' },
+                { value: 'HIGH',   label: 'HIGH',   color: '#ff1744' },
                 { value: 'MEDIUM', label: 'MEDIUM', color: '#ffab40' },
-                { value: 'LOW', label: 'LOW', color: '#39ff14' },
+                { value: 'LOW',    label: 'LOW',    color: '#39ff14' },
               ].map(opt => (
-                <button key={opt.value} onClick={() => setFilter(f => ({ ...f, severity: opt.value }))}
+                <button key={opt.value}
+                  onClick={() => setFilter(f => ({ ...f, severity: opt.value }))}
                   style={filterPill(filter.severity === opt.value, opt.color)}>
                   {opt.label}
                 </button>
@@ -273,12 +307,13 @@ const Alerts = () => {
             <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.06)' }} />
             <div style={{ display: 'flex', gap: 6 }}>
               {[
-                { value: '', label: 'ALL STATUS', color: '#00f5ff' },
-                { value: 'NEW', label: 'NEW', color: '#ffab40' },
-                { value: 'RESOLVED', label: 'RESOLVED', color: '#39ff14' },
-                { value: 'FALSE_POSITIVE', label: 'FALSE POS', color: '#7c4dff' },
+                { value: '',               label: 'ALL STATUS', color: '#00f5ff' },
+                { value: 'NEW',            label: 'NEW',        color: '#ffab40' },
+                { value: 'RESOLVED',       label: 'RESOLVED',   color: '#39ff14' },
+                { value: 'FALSE_POSITIVE', label: 'FALSE POS',  color: '#7c4dff' },
               ].map(opt => (
-                <button key={opt.value} onClick={() => setFilter(f => ({ ...f, status: opt.value }))}
+                <button key={opt.value}
+                  onClick={() => setFilter(f => ({ ...f, status: opt.value }))}
                   style={filterPill(filter.status === opt.value, opt.color)}>
                   {opt.label}
                 </button>
@@ -295,7 +330,7 @@ const Alerts = () => {
             )}
           </div>
 
-          {/* Role legend */}
+          {/* ── Role legend ── */}
           <div style={{
             display: 'flex', gap: 16, marginBottom: 12,
             fontFamily: 'JetBrains Mono', fontSize: 9, color: '#4a5568',
@@ -306,7 +341,7 @@ const Alerts = () => {
             }
           </div>
 
-          {/* Table panel */}
+          {/* ── Table panel ── */}
           <div style={{
             background: 'rgba(255,255,255,0.02)',
             border: '1px solid rgba(0,245,255,0.12)',
@@ -340,32 +375,11 @@ const Alerts = () => {
       </div>
 
       <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes spin    { to { transform: rotate(360deg); } }
+        @keyframes fadeIn  { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
     </div>
   );
 };
-
-// Style helpers
-const btnStyle = (color) => ({
-  display: 'flex', alignItems: 'center', gap: 6,
-  background: `${color}10`,
-  border: `1px solid ${color}30`,
-  borderRadius: 6, padding: '8px 14px',
-  color: color, fontSize: 11,
-  fontFamily: 'JetBrains Mono', cursor: 'pointer',
-  letterSpacing: '0.08em', transition: 'all 0.2s',
-});
-
-const filterPill = (active, color) => ({
-  padding: '5px 12px', borderRadius: 4,
-  fontFamily: 'JetBrains Mono', fontSize: 9,
-  letterSpacing: '0.08em', cursor: 'pointer',
-  background: active ? `${color}15` : 'transparent',
-  border: active ? `1px solid ${color}50` : '1px solid rgba(255,255,255,0.06)',
-  color: active ? color : '#4a5568',
-  transition: 'all 0.2s',
-});
 
 export default Alerts;

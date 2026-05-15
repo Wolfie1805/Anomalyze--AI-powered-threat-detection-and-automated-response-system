@@ -19,6 +19,7 @@ NORMAL_IPS = [
     f"192.168.1.{i}" for i in range(1, 20)
 ] + [f"10.0.0.{i}" for i in range(1, 10)]
 
+
 async def process_log_line(log_type: str, line: str, db: Session):
     parsed = parse_log(log_type, line)
 
@@ -29,6 +30,20 @@ async def process_log_line(log_type: str, line: str, db: Session):
         ip_match = re.search(r'\d+\.\d+\.\d+\.\d+', parsed.get("message", ""))
         if ip_match:
             source_ip = ip_match.group(0)
+    elif log_type == "firewall":
+        # Try parsed field first, then regex fallback on raw line
+        source_ip = parsed.get("source_ip") or parsed.get("ip")
+        if not source_ip:
+            ip_match = re.search(r'from (\d+\.\d+\.\d+\.\d+)', line)
+            if ip_match:
+                source_ip = ip_match.group(1)
+        if not source_ip:
+            # Last resort — grab first non-local IP in the line
+            for m in re.finditer(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', line):
+                ip = m.group(1)
+                if not ip.startswith(("127.", "0.", "192.168.", "10.")):
+                    source_ip = ip
+                    break
 
     log_entry = LogEntry(
         source_ip=source_ip,
@@ -41,13 +56,13 @@ async def process_log_line(log_type: str, line: str, db: Session):
     db.commit()
     db.refresh(log_entry)
 
-    # 🔥 THIS IS THE KEY — run full ML + rule pipeline
     try:
         process_log_for_alerts(log_entry, db)
     except Exception as e:
         print(f"Alert processing error: {e}")
 
     return log_entry
+
 
 def generate_synthetic_log(attack_type: str = None):
     """Generate realistic log lines including various attack types."""
@@ -80,18 +95,18 @@ def generate_synthetic_log(attack_type: str = None):
         return "nginx", line
 
     elif attack_type == "dos":
-        ip = random.choice(ATTACKER_IPS[:3])  # same IP flooding
+        ip = random.choice(ATTACKER_IPS[:3])
         line = f'{ip} - - [{now}] "GET / HTTP/1.1" 200 512 "-" "flood-tool/1.0"'
         return "nginx", line
 
     else:
-        # Normal traffic
         ip = random.choice(NORMAL_IPS)
         paths = ["/", "/index.html", "/about", "/products", "/api/health", "/static/app.js"]
         status = random.choice([200, 200, 200, 304, 301, 404])
         size = random.randint(200, 5000)
         line = f'{ip} - - [{now}] "GET {random.choice(paths)} HTTP/1.1" {status} {size} "-" "Mozilla/5.0"'
         return "nginx", line
+
 
 async def dev_mode_log_generator():
     from backend.config import settings
@@ -101,21 +116,18 @@ async def dev_mode_log_generator():
     print("🚀 Dev mode log generator started — full ML pipeline active")
 
     attack_schedule = [
-        (None, 0.6),           # 60% normal traffic
-        ("brute_force", 0.15), # 15% brute force
-        ("sqli", 0.08),        # 8% SQL injection
-        ("scanner", 0.07),     # 7% scanner
-        ("path_traversal", 0.05), # 5% path traversal
-        ("xss", 0.03),         # 3% XSS
-        ("dos", 0.02),         # 2% DoS
+        (None, 0.6),
+        ("brute_force", 0.15),
+        ("sqli", 0.08),
+        ("scanner", 0.07),
+        ("path_traversal", 0.05),
+        ("xss", 0.03),
+        ("dos", 0.02),
     ]
-
-    dos_burst_counter = 0
 
     while True:
         db = SessionLocal()
         try:
-            # Occasionally simulate DoS burst (50 rapid requests)
             if random.random() < 0.01:
                 print("⚡ Simulating DoS burst...")
                 dos_ip = random.choice(ATTACKER_IPS[:3])
@@ -125,7 +137,6 @@ async def dev_mode_log_generator():
                     await process_log_line("nginx", line, db)
                     await asyncio.sleep(0.05)
 
-            # Normal single log generation
             rand = random.random()
             cumulative = 0
             chosen_attack = None
@@ -143,7 +154,6 @@ async def dev_mode_log_generator():
         finally:
             db.close()
 
-        # Variable sleep — faster during attacks
         if chosen_attack:
             await asyncio.sleep(random.uniform(0.5, 2.0))
         else:
