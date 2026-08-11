@@ -2,7 +2,16 @@ import React from 'react';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
 
-interface NeonButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface NeonButtonProps
+  extends Omit
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
+    | 'onDrag'
+    | 'onDragStart'
+    | 'onDragEnd'
+    | 'onAnimationStart'
+    | 'onAnimationEnd'
+    | 'onAnimationIteration'
+  > {
   variant?: 'primary' | 'danger' | 'ghost';
   isLoading?: boolean;
 }
