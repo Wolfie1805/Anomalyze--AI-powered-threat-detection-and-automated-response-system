@@ -6,6 +6,8 @@
   "routes": [
     { "src": "/api/(.*)", "dest": "backend/main.py" },
     { "src": "/assets/(.*)", "dest": "/frontend/assets/$1" },
+    { "src": "/landing.html", "dest": "/frontend/landing.html" },
+    { "src": "/vite.svg", "dest": "/frontend/vite.svg" },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/frontend/index.html" }
   ]
