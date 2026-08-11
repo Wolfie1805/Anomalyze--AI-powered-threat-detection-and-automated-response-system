@@ -7,7 +7,7 @@ const api = axios.create({
 // Axios interceptor to add token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('anomalyze_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -22,7 +22,7 @@ api.interceptors.response.use(
     if (error.response && error.response.status === 401 && !error.config.url.includes('/auth/me')) {
       // Handle unauthorized (redirect to login)
       if (window.location.pathname !== '/login') {
-        localStorage.removeItem('token');
+        localStorage.removeItem('anomalyze_token');
         window.location.href = '/login';
       }
     }

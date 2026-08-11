@@ -8,7 +8,7 @@ export const useWebSocket = () => {
   const { addAlert } = useAlertStore();
 
   useEffect(() => {
-    const token = localStorage.getItem('access_token');
+    const token = localStorage.getItem('anomalyze_token');
     if (!token) return;
 
     let reconnectTimer: any;
