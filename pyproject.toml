@@ -21,6 +21,7 @@ dependencies = [
     "httpx==0.26.0",
     "watchdog==2.3.0",
     "scapy==2.6.0",
+    "psycopg2-binary==2.9.9",
     "pywin32==306 ; sys_platform == 'win32'",
 ]
 
