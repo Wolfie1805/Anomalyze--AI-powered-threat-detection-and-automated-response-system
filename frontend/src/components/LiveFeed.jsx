@@ -178,7 +178,7 @@ const LiveFeed = ({ onStatsUpdate, onNewAlert }) => {
 
     const connect = () => {
       if (!token) return;
-      const wsUrl = `ws://localhost:8000/ws?token=${token}`;
+      const wsUrl = `wss://${window.location.host}/ws?token=${token}`;
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => setStatus('connected');

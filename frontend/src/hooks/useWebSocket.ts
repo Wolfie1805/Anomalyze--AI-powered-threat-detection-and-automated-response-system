@@ -14,7 +14,7 @@ export const useWebSocket = () => {
     let reconnectTimer: any;
 
     const connect = () => {
-      ws.current = new WebSocket(`ws://localhost:8000/ws?token=${token}`);
+      ws.current = new WebSocket(`wss://${window.location.host}/ws?token=${token}`);
 
       ws.current.onopen = () => {
         setConnected(true);
