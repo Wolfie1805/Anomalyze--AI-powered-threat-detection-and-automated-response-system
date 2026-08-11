@@ -3793,7 +3793,7 @@
           <div class="support-card-title">API Documentation</div>
           <div class="support-card-desc">Anomalyze exposes a full REST API documented automatically via FastAPI's
             Swagger UI. All 20+ endpoints available for integration. Requires JWT Bearer token.</div>
-          <a href="http://localhost:8000/docs" class="btn-ghost"
+          <a href="/docs" class="btn-ghost"
             style="display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:10px 16px;font-family:var(--font-m);">localhost:8000/docs
             →</a>
         </div>
@@ -4088,8 +4088,8 @@
 
     /* ── LOGIN LOGIC ── */
     let selectedRole = 'ADMIN';
-    const BACKEND_URL = 'http://localhost:8000/api/v1';
-    const DASHBOARD_URL = 'http://localhost:5173/dashboard';
+    const BACKEND_URL = '/api/v1';
+    const DASHBOARD_URL = '/dashboard';
 
     function selectRole(r) {
       selectedRole = r;
@@ -4229,7 +4229,7 @@
     /* ════════════════════════════════════════════
        ARIA CHATBOT — VANILLA JS
     ════════════════════════════════════════════ */
-    const ARIA_BACKEND = 'http://localhost:8000';
+    const ARIA_BACKEND = '';
     const ARIA_SUGGESTED = [
       'What is a brute force attack?',
       'How does SQL injection work?',
@@ -4333,7 +4333,7 @@
         }
       } catch (e) {
         ariaRemoveTyping();
-        ariaAddMsg('assistant', 'Connection error — make sure the backend is running at `http://localhost:8000`.');
+        ariaAddMsg('assistant', 'Connection error — please try again later.');
       } finally {
         ariaLoading = false;
         dot.style.background = '#10b981'; dot.style.boxShadow = '0 0 6px #10b981';
